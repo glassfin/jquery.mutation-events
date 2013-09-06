@@ -14,6 +14,21 @@
  * Author: Valery Swanson-Desir, Knight W. Fu
  * Dual licensed under the MIT (MIT-LICENSE.txt)
  * and GPL (GPL-LICENSE.txt) licenses.
+ *
+ * Minimum Browser Version when used with jQuery 1.x
+ * FF 1
+ * Chrome 1
+ * Safari 1
+ * Opera 1
+ * IE 6
+ *
+ * Minimum Browser Version when used with jQuery 2.x
+ * FF 1
+ * Chrome 1
+ * Safari 1
+ * Opera 1
+ * IE 9
+ *
  */
 define(
 
@@ -24,11 +39,13 @@ function( $ )
 
 var CustomEvent = $.CustomEvent || {};
 
-$.extend( $.CustomEvent, {
+$.extend( CustomEvent, {
    // Define a new Event Type
    Event: function( type, params ) {
           return $.extend(new $.Event( type ), params);
    },
+
+   pre : 'pre',
 
    /**
     * Class CustomEvent.EventType
@@ -40,18 +57,51 @@ $.extend( $.CustomEvent, {
     *    * teardown ( void )
     *      to be called when the event type is removed
     */
-   EventType : function( _type, data )
+   EventType : function( type, config )
    {
-      var _empty = function(){ };
-
-      return $.extend( {
-         type : _type,
+      return {
          // the type of the event
+         'type' : type,
 
-         setup : _empty,
+         setup : function()
+         {
+            // add event sugar '$.{type}( eventData = null, handler )' 
+            // for ...
+            function _addJQEventSugar( eventName )
+            {
+               $.fn[ eventName ] = function( data, handler )
+               {
+                  if( handler === undefined )
+                  {
+                     return $.fn.on.call( this, eventName, data );
+                  }
 
-         teardown : _empty
-      }, data );
+                  return $.fn.on.call( this, eventName, data, handler );
+               }
+            }
+
+            // ... the pre-event ...
+            _addJQEventSugar( CustomEvent.pre + type );
+
+            // ... and the actual event
+            _addJQEventSugar( type );
+
+            // call setup if it is defined
+            if( config.setup )
+               config.setup.call( this );
+         },
+
+         teardown : function()
+         {
+            // remove the event sugars
+            delete $.fn[ type ];
+            delete $.fn[ CustomEvent.pre + type ];
+
+            // call teardown if it is defined
+            if( config.teardown )
+               config.teardown.call( this );
+         }
+      };
    },
 
    // Trigger a pre and post mutation event, the pre mutation handlers may
@@ -71,7 +121,7 @@ $.extend( $.CustomEvent, {
                      // the event's default action
                     ) 
    {
-      var event = CustomEvent.Event( "pre-" + eventType, eventParams ),
+      var event = CustomEvent.Event( CustomEvent.pre + eventType, eventParams ),
 
       // get the registered event object
       eventTypeObj = CustomEvent.type[eventType];
@@ -123,17 +173,19 @@ $.extend( $.CustomEvent, {
 
       // Register the pre/post custom events type as special event type
       // so we can hook into jQuery 
-      function addNewEvent( eventType ) 
+      function addNewEvent( eventType, stage ) 
       {
          $.event.special[eventType] = 
          {
-            // method called 'on'
+            // this method is invoked when user calls 'on'
             add: function( handler, data, namespaces ) 
             {
                // Call the event type's setup function on the first time
                // the user binds to the event
                if ( !( eventTypeObj.pre + eventTypeObj.post ) ) 
                   eventTypeObj.setup();
+
+               eventTypeObj[ stage ]++;
 
                // if an event handler is added with namespaces
                if ( namespaces && namespaces.length ) 
@@ -180,8 +232,10 @@ $.extend( $.CustomEvent, {
                }
             },
 
+            // this method is invoked when user calls 'off'
             remove: function() 
             {
+               opts[ stage ]--;
                // Call teardown when last binding is removed
                if ( !( eventTypeObj.pre + eventTypeObj.post) ) 
                {
@@ -190,13 +244,17 @@ $.extend( $.CustomEvent, {
             }
          };
       }
+      
+      // add the pre event associated with this event type
+      addNewEvent( CustomEvent.pre + eventTypeObj.type, 'pre');
 
-      addNewEvent( 'pre-' + eventTypeObj.type, 'pre');
+      // add a post event associated with this event type
       addNewEvent( eventTypeObj.type, 'post');
    }
 } );
 
-return CustomEvents;
+// return the object as part of AMD
+return CustomEvent;
 
 });
 
