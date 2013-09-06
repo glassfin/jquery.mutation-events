@@ -30,6 +30,30 @@ $.extend( $.CustomEvent, {
           return $.extend(new $.Event( type ), params);
    },
 
+   /**
+    * Class CustomEvent.EventType
+    *
+    * Extend
+    *    * setup ( void ) 
+    *      to be called when the event type is first added
+    *
+    *    * teardown ( void )
+    *      to be called when the event type is removed
+    */
+   EventType : function( _type, data )
+   {
+      var _empty = function(){ };
+
+      return $.extend( {
+         type : _type,
+         // the type of the event
+
+         setup : _empty,
+
+         teardown : _empty
+      }, data );
+   },
+
    // Trigger a pre and post mutation event, the pre mutation handlers may
    // cancel the mutation using event.preventDefault(), it may also modify
    // the mutation by setting the event fields.
@@ -87,7 +111,9 @@ $.extend( $.CustomEvent, {
    type: {},
 
    // Register a new custom event
-   register: function( eventTypeObj ) 
+   register: function( eventTypeObj 
+                       // the event type object to register
+                     ) 
    {
       CustomEvent.type[ eventTypeObj.type ] = eventTypeObj;
 
@@ -99,51 +125,74 @@ $.extend( $.CustomEvent, {
       // so we can hook into jQuery 
       function addNewEvent( eventType ) 
       {
-         $.event.special[eventType] = {
-         add: function( handler, data, namespaces ) {
+         $.event.special[eventType] = 
+         {
+            // method called 'on'
+            add: function( handler, data, namespaces ) 
+            {
+               // Call the event type's setup function on the first time
+               // the user binds to the event
+               if ( !( eventTypeObj.pre + eventTypeObj.post ) ) 
+                  eventTypeObj.setup();
 
-         // Call the event type's setup function on the first time
-         // the user binds to the event
-         if ( !( eventTypeObj.pre + eventTypeObj.post ) ) 
-            opts.setup();
+               // if an event handler is added with namespaces
+               if ( namespaces && namespaces.length ) 
+               {
+                  var attrNames = {}, 
+                  // list of attributes names associated
+                  // with the handler
+                  
+                  proxy = false;
+                  // keeps track of whether proxy is used, and
+                  // if used, saves the object
 
-         // If any namespaces are given prefixed with @ then limit
-         // the handler to the bound element and attrNames specified
-         // by the @-prefixed names.
-         if ( namespaces && namespaces.length ) {
-         var attrNames = {}, proxy;
+                  // for each namespace ...
+                  $.each(namespaces, function() 
+                  {
+                     // If any namespaces are given prefixed with @ then limit
+                     // the handler to the bound element and attrNames specified
+                     // by the @-prefixed names.
+                     if ( '@' === this.charAt(0) ) 
+                     {
+                        attrNames[ this.substring(1) ] = true;
+                        proxy = true;
+                     }
+                  } );
+                  
+                  // if we use proxy ...
+                  if ( proxy ) 
+                  {
+                     // ... reset the proxy to this event
+                     proxy = function( event ) 
+                     {
+                        if ( this === event.target && 
+                             attrNames[ event.attrName ] ) 
+                        {
+                           return handler.apply( this, arguments );
+                        }
+                     };
 
-         $.each(namespaces, function() {
-         if ( '@' === this.charAt(0) ) {
-         attrNames[this.substring(1)] = true;
-         proxy = true;
-         }
-         });
+                     // ... set the proxy type
+                     proxy.type = handler.type;
 
-         if ( proxy ) {
-         proxy = function(event) {
-         if ( this === event.target && attrNames[event.attrName] ) {
-         return handler.apply(this, arguments);
-         }
-         };
-         proxy.type = handler.type;
-         return proxy;
-         }
-         }
-         },
+                     return proxy;
+                  }
+               }
+            },
 
-         remove: function() {
-         // Call teardown when last binding is removed
-         opts[stage]--;
-         if ( !(opts.pre + opts.post) ) {
-         opts.teardown();
-         }
-         }
+            remove: function() 
+            {
+               // Call teardown when last binding is removed
+               if ( !( eventTypeObj.pre + eventTypeObj.post) ) 
+               {
+                  eventTypeObj.teardown();
+               }
+            }
          };
       }
 
-      addNewEvent( 'pre-' + opts.type, 'pre');
-      addNewEvent( opts.type, 'post');
+      addNewEvent( 'pre-' + eventTypeObj.type, 'pre');
+      addNewEvent( eventTypeObj.type, 'post');
    }
 } );
 
