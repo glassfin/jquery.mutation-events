@@ -61,30 +61,25 @@ $.extend( CustomEvent, {
 
          setup : function()
          {
-            // add event sugar '$.{type}( eventData = null, handler )' 
-            // for ...
-            function _addJQEventSugar( eventName )
-            {
-               $.fn[ eventName ] = function( data, handler )
-               {
-                  if( handler === undefined )
-                  {
-                     return $.fn.on.call( this, eventName, data );
-                  }
-
-                  return $.fn.on.call( this, eventName, data, handler );
-               }
-            }
-
-            // ... the pre-event ...
-            _addJQEventSugar( CustomEvent.pre + type );
-
-            // ... and the actual event
-            _addJQEventSugar( type );
-
             // call setup if it is defined
             if( config.setup )
                config.setup.call( this );
+         },
+
+         process : function( data )
+         {
+            this[ data.stage ]++; 
+
+            if( config.process )
+               config.process.call( this, data );
+         },
+
+         cleanup : function( data )
+         {
+            this[ data.stage ]--;
+
+            if( config.process )
+               config.cleanup.call( this, data );
          },
 
          teardown : function()
@@ -167,21 +162,58 @@ $.extend( CustomEvent, {
       eventTypeObj.pre = 0;
       eventTypeObj.post = 0;
 
+      // add event sugar '$.{type}( eventData = null, handler )' 
+      // for ...
+      function _addJQEventSugar( eventName )
+      {
+         $.fn[ eventName ] = function( data, handler )
+         {
+            if( handler === undefined )
+            {
+               return $.fn.on.call( this, eventName, data );
+            }
+
+            return $.fn.on.call( this, eventName, data, handler );
+         }
+      }
+
       // Register the pre/post custom events type as special event type
       // so we can hook into jQuery 
       function addNewEvent( eventType, stage ) 
       {
+         
+         // ... the pre-event ...
+         _addJQEventSugar( CustomEvent.pre + eventType );
+
+         // ... and the actual event
+         _addJQEventSugar( eventType );
+
          $.event.special[eventType] = 
          {
             // this method is invoked when user calls 'on'
             add: function( handler, data, namespaces ) 
             {
+               // in jQuery 2.x, the handler holds all the data, so
+               // in the case where handler is an object
+               if( typeof handler == 'object' )
+               {
+                  data = handler.data;
+                  namespaces = handler.namespaces;
+                  handler = handler.handler;
+               }
+
                // Call the event type's setup function on the first time
                // the user binds to the event
                if ( !( eventTypeObj.pre + eventTypeObj.post ) ) 
+               {
                   eventTypeObj.setup();
+               }
 
-               eventTypeObj[ stage ]++;
+               eventTypeObj.process({
+                  eventData : data,
+                  target : this,
+                  stage : stage
+               });
 
                // if an event handler is added with namespaces
                if ( namespaces && namespaces.length ) 
@@ -231,7 +263,11 @@ $.extend( CustomEvent, {
             // this method is invoked when user calls 'off'
             remove: function() 
             {
-               opts[ stage ]--;
+               eventTypeObj.cleanup({ 
+                  stage : stage,
+                  target : this
+               });
+
                // Call teardown when last binding is removed
                if ( !( eventTypeObj.pre + eventTypeObj.post) ) 
                {
