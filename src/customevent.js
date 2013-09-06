@@ -16,7 +16,9 @@
  * and GPL (GPL-LICENSE.txt) licenses.
  */
 define(
+
 ['lib/jquery'],
+
 function( $ )
 {
 
@@ -84,65 +86,64 @@ $.extend( $.CustomEvent, {
    // the types
    type: {},
 
-   // Register a new mutation event
-   register: function( opts ) {
-          m.type[opts.type] = opts;
-          
-          // Track how many bindings we have for this event type
-          opts.pre = 0;
-          opts.post = 0;
+   // Register a new custom event
+   register: function( eventTypeObj ) 
+   {
+      CustomEvent.type[ eventTypeObj.type ] = eventTypeObj;
 
-          // Register the pre/post mutation event types as special event type
-          // so we can hook into jQuery on the first binding of this type		
-          
-          function createNewEventType( eventType, stage ) {
-                  $.event.special[eventType] = {
-                          add: function( handler, data, namespaces) {
-                                  
-                                  // Call the setup on the first binding
-                                  if ( !(opts.pre + opts.post) ) {
-                                          opts.setup();
-                                  }
+      // initialize the number of pre/post events to 0
+      eventTypeObj.pre = 0;
+      eventTypeObj.post = 0;
 
-                                  opts[stage]++;
-                                  
-                                  // If any namespaces are given prefixed with @ then limit
-                                  // the handler to the bound element and attrNames specified
-                                  // by the @-prefixed names.
-                                  if ( namespaces && namespaces.length ) {
-                                          var attrNames = {}, proxy;
-                                          
-                                          $.each(namespaces, function() {
-                                                  if ( '@' === this.charAt(0) ) {
-                                                          attrNames[this.substring(1)] = true;
-                                                          proxy = true;
-                                                  }
-                                          });
-                                          
-                                          if ( proxy ) {
-                                                  proxy = function(event) {
-                                                          if ( this === event.target && attrNames[event.attrName] ) {
-                                                                  return handler.apply(this, arguments);
-                                                          }
-                                                  };
-                                                  proxy.type = handler.type;
-                                                  return proxy;
-                                          }
-                                  }
-                          },
-          
-                          remove: function() {
-                                  // Call teardown when last binding is removed
-                                  opts[stage]--;
-                                  if ( !(opts.pre + opts.post) ) {
-                                          opts.teardown();
-                                  }
-                          }
-                  };
-          }
-          
-          special(m.pre + opts.type, 'pre');
-          special(opts.type, 'post');
+      // Register the pre/post custom events type as special event type
+      // so we can hook into jQuery 
+      function addNewEvent( eventType ) 
+      {
+         $.event.special[eventType] = {
+         add: function( handler, data, namespaces ) {
+
+         // Call the event type's setup function on the first time
+         // the user binds to the event
+         if ( !( eventTypeObj.pre + eventTypeObj.post ) ) 
+            opts.setup();
+
+         // If any namespaces are given prefixed with @ then limit
+         // the handler to the bound element and attrNames specified
+         // by the @-prefixed names.
+         if ( namespaces && namespaces.length ) {
+         var attrNames = {}, proxy;
+
+         $.each(namespaces, function() {
+         if ( '@' === this.charAt(0) ) {
+         attrNames[this.substring(1)] = true;
+         proxy = true;
+         }
+         });
+
+         if ( proxy ) {
+         proxy = function(event) {
+         if ( this === event.target && attrNames[event.attrName] ) {
+         return handler.apply(this, arguments);
+         }
+         };
+         proxy.type = handler.type;
+         return proxy;
+         }
+         }
+         },
+
+         remove: function() {
+         // Call teardown when last binding is removed
+         opts[stage]--;
+         if ( !(opts.pre + opts.post) ) {
+         opts.teardown();
+         }
+         }
+         };
+      }
+
+      addNewEvent( 'pre-' + opts.type, 'pre');
+      addNewEvent( opts.type, 'post');
    }
 } );
 
