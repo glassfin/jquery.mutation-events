@@ -30,14 +30,10 @@
  * IE 9
  *
  */
-define(
-
-['lib/jquery'],
-
-function( $ )
+( function( $ )
 {
 
-var CustomEvent = $.CustomEvent || {};
+var CustomEvent = $.CustomEvent = $.CustomEvent || {}; 
 
 $.extend( CustomEvent, {
    // Define a new Event Type
@@ -253,8 +249,5 @@ $.extend( CustomEvent, {
    }
 } );
 
-// return the object as part of AMD
-return CustomEvent;
-
-});
+} )( $ );
 
