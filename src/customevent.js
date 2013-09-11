@@ -59,6 +59,10 @@ $.extend( CustomEvent, {
          // the type of the event
          'type' : type,
 
+         cancellable : 
+            config.cancellable === undefined? 
+               true : config.cancellable,
+
          setup : function()
          {
             // call setup if it is defined
@@ -127,12 +131,15 @@ $.extend( CustomEvent, {
       if ( eventTypeObj.pre ) 
          $.event.trigger( event, undefined, event.target );
       
-      // if the default action is not cancelled
-      var returnVal;
-      if ( !event.isDefaultPrevented() ) 
+      // if the default action is not cancelled, or that the
+      // event is not cancellable
+      var returnVal = null;
+      if ( ( !event.isDefaultPrevented() && 
+           defaultAction != undefined ) ||
+           !eventTypeObj.cancellable )
       {
          event.type = eventType;
-         returnVal = action(event);
+         returnVal = defaultAction( event );
 
          // if there are any post handlers registered
          if ( eventTypeObj.post ) 
